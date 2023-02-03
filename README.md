@@ -1,4 +1,4 @@
-This is a preliminary version of our code. We are cleaning up and organizing the code for sampling molecules.
+This is a preliminary version of our code. We are cleaning up and will opensource the code soon.
 ## Install conda environment via conda yaml file
 ```bash
 conda env create -f flag_env.yaml
