@@ -36,8 +36,8 @@ class FLAG(Module):
         #self.c_mlp = MLP(in_dim=config.hidden_channels*4, out_dim=1, num_layers=1)
         self.dist_mlp = MLP(in_dim=protein_atom_feature_dim + ligand_atom_feature_dim, out_dim=1, num_layers=2)
         if config.refinement:
-            self.refine_protein = MLP(in_dim=protein_atom_feature_dim + ligand_atom_feature_dim + config.encoder.edge_channels, out_dim=1, num_layers=2)
-            self.refine_ligand = MLP(in_dim=ligand_atom_feature_dim*2 + config.encoder.edge_channels, out_dim=1, num_layers=2)
+            self.refine_protein = MLP(in_dim=config.hidden_channels * 2 + config.encoder.edge_channels, out_dim=1, num_layers=2)
+            self.refine_ligand = MLP(in_dim=config.hidden_channels * 2 + config.encoder.edge_channels, out_dim=1, num_layers=2)
 
         self.smooth_cross_entropy = SmoothCrossEntropyLoss(reduction='mean', smoothing=0.1)
         self.pred_loss = nn.CrossEntropyLoss()
@@ -190,8 +190,8 @@ class FLAG(Module):
             input_distance_intra = ligand_pos[batch['sr_ligand_idx0']] - ligand_pos[batch['sr_ligand_idx1']]
             distance_emb1 = self.encoder.distance_expansion(torch.norm(input_distance_alpha, dim=1))
             distance_emb2 = self.encoder.distance_expansion(torch.norm(input_distance_intra, dim=1))
-            input1 = torch.cat([ligand_atom_feature[batch['sr_ligand_idx']], protein_atom_feature[batch['sr_protein_idx']], distance_emb1], dim=-1)
-            input2 = torch.cat([ligand_atom_feature[batch['sr_ligand_idx0']], ligand_atom_feature[batch['sr_ligand_idx1']], distance_emb2], dim=-1)
+            input1 = torch.cat([h_ctx_ligand[batch['sr_ligand_idx']], h_ctx_protein[batch['sr_protein_idx']], distance_emb1], dim=-1)
+            input2 = torch.cat([h_ctx_ligand[batch['sr_ligand_idx0']], h_ctx_ligand[batch['sr_ligand_idx1']], distance_emb2], dim=-1)
             #distance cut_off
             norm_dir1 = F.normalize(input_distance_alpha, p=2, dim=1)* torch.where(true_distance_alpha>10.0, torch.zeros_like(true_distance_alpha), true_distance_alpha).unsqueeze(1)
             norm_dir2 = F.normalize(input_distance_intra, p=2, dim=1)* torch.where(true_distance_intra>10.0, torch.zeros_like(true_distance_intra), true_distance_intra).unsqueeze(1)
