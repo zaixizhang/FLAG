@@ -1,6 +1,7 @@
 # FLAG ICLR23
+Molecule Generation For Target Protein Binding With Structural Motifs
+<div align=center><img src="https://github.com/zaixizhang/FLAG/blob/main/flag.png" width="700"/></div>
 
-This is a preliminary version of our code. We are cleaning up and will opensource the code soon.
 ## Install conda environment via conda yaml file
 ```bash
 conda env create -f flag_env.yaml
