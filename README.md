@@ -16,7 +16,12 @@ Please refer to [`README.md`](./data/README.md) in the `data` folder.
 python train.py
 ```
 
-##Reference
+## Sampling
+```
+python motif_sample.py
+```
+
+## Reference
 ```@inproceedings{
 zhang2023molecule,
 title={Molecule Generation For Target Protein Binding with Structural Motifs},
