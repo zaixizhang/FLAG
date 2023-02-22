@@ -23,12 +23,14 @@ python motif_sample.py
 ```
 
 ## Reference
-```@inproceedings{
+```
+@inproceedings{
 zhang2023molecule,
 title={Molecule Generation For Target Protein Binding with Structural Motifs},
 author={ZAIXI ZHANG and Qi Liu and Shuxin Zheng and Yaosen Min},
 booktitle={International Conference on Learning Representations},
 year={2023},
 url={https://openreview.net/forum?id=Rq13idF0F73}
-}```
+}
+```
 
