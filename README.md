@@ -2,6 +2,12 @@
 Molecule Generation For Target Protein Binding With Structural Motifs
 <div align=center><img src="https://github.com/zaixizhang/FLAG/blob/main/flag.png" width="700"/></div>
 
+##Abstract
+Designing ligand molecules that bind to specific protein binding sites is a fundamental problem in structure-based drug design. Although deep generative models and geometric deep learning have made great progress in drug design, existing works either sample in the 2D graph space or fail to generate valid molecules with realistic substructures. To tackle these problems, we propose a **F**ragment-based **L**ig **A**nd **G**eneration framework (**FLAG**), to generate 3D molecules with valid and realistic substructures fragment-by-fragment. In FLAG, a motif vocabulary is constructed by extracting common molecular fragments (i.e., motif) in the dataset. At each generation step, a 3D graph neural network is first employed to encode the intermediate context information. Then, our model selects the focal motif, predicts the next motif type, and attaches the new motif. The bond lengths/angles can be quickly and accurately determined by cheminformatics tools. Finally, 
+the molecular geometry is further adjusted according to the predicted rotation angle and the structure refinement.
+Our model not only achieves competitive performances on conventional metrics such as binding affinity, QED, and SA, but also outperforms baselines by a
+large margin in generating molecules with realistic substructures.
+
 ## Install conda environment via conda yaml file
 ```bash
 conda env create -f flag_env.yaml
