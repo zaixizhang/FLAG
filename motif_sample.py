@@ -15,7 +15,7 @@ from rdkit.Chem import ChemicalFeatures, rdMolDescriptors
 from rdkit import RDConfig
 from rdkit.Chem.Descriptors import MolLogP, qed
 
-from models.maskfill import MaskFillModel
+from models.flag import FLAG
 from utils.transforms import *
 from utils.datasets import get_dataset
 from utils.misc import *
@@ -409,7 +409,7 @@ if __name__ == '__main__':
     # Model (Main)
     logger.info('Loading main model...')
     ckpt = torch.load(config.model.checkpoint, map_location=args.device)
-    model = MaskFillModel(
+    model = FLAG(
         ckpt['config'].model,
         protein_atom_feature_dim=protein_featurizer.feature_dim,
         ligand_atom_feature_dim=ligand_featurizer.feature_dim,
