@@ -140,7 +140,7 @@ def refine_pos(ligand_pos, protein_pos, h_ctx_ligand, h_ctx_protein, model, batc
     return ligand_pos
 
 
-def ligand_gen(batch, model, vocab, config, center, refinement=True):
+def ligand_gen(batch, model, vocab, config, center, refinement=False):
     pos_list = []
     feat_list = []
     motif_id = [0 for _ in range(config.sample.batch_size)]
