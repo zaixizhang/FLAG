@@ -16,6 +16,13 @@ conda activate flag_env
 ## Datasets
 Please refer to [`README.md`](./data/README.md) in the `data` folder.
 
+## Dataset Preprocessing and motif vocab construction
+
+```
+cd utils
+python mol_tree.py
+```
+
 ## Training
 
 ```
