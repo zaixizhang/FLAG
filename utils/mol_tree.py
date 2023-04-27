@@ -8,7 +8,7 @@ from tqdm.auto import tqdm
 import numpy as np
 import torch
 import random
-from .chemutils import get_clique_mol, tree_decomp, get_mol, get_smiles, set_atommap, get_clique_mol_simple
+from chemutils import get_clique_mol, tree_decomp, get_mol, get_smiles, set_atommap, get_clique_mol_simple
 from collections import defaultdict
 
 
@@ -160,13 +160,13 @@ if __name__ == "__main__":
     vocab = {}
     cnt = 0
     rot = 0
-    index_path = '/data/zhicai/zaixi/FLAG/crossdocked_pocket10/index.pkl'
+    index_path = '/data/FLAG/crossdocked_pocket10/index.pkl'
     with open(index_path, 'rb') as f:
         index = pickle.load(f)
     for i, (pocket_fn, ligand_fn, _, rmsd_str) in enumerate(tqdm(index)):
         if pocket_fn is None: continue
         try:
-            path = '/data/zhicai/zaixi/FLAG/crossdocked_pocket10/' + ligand_fn
+            path = '/data/FLAG/crossdocked_pocket10/' + ligand_fn
             mol = Chem.MolFromMolFile(path, sanitize=False)
             moltree = MolTree(mol)
             cnt += 1
