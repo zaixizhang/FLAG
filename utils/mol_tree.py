@@ -5,7 +5,11 @@ import rdkit.Chem as Chem
 import copy
 import pickle
 from tqdm.auto import tqdm
+import numpy as np
+import torch
+import random
 from .chemutils import get_clique_mol, tree_decomp, get_mol, get_smiles, set_atommap, get_clique_mol_simple
+from collections import defaultdict
 
 
 def get_slots(smiles):
@@ -36,7 +40,7 @@ class Vocab(object):
 class MolTreeNode(object):
 
     def __init__(self, mol, cmol, clique):
-        self.smiles = Chem.MolToSmiles(cmol)
+        self.smiles = Chem.MolToSmiles(cmol, canonical=True)
         self.mol = cmol
         self.clique = [x for x in clique]  # copy
 
@@ -99,8 +103,15 @@ class MolTree(object):
         self.smiles = Chem.MolToSmiles(mol)
         self.mol = mol
         self.num_rotatable_bond = 0
-
-        cliques, edges = tree_decomp(self.mol)
+        '''
+        # use reference_vocab and threshold to control the size of vocab
+        reference_vocab = np.load('./utils/reference.npy', allow_pickle=True).item()
+        reference = defaultdict(int)
+        for k, v in reference_vocab.items():
+            reference[k] = v'''
+        
+        # use vanilla tree decomposition for simplicity
+        cliques, edges = tree_decomp(self.mol, reference_vocab=None)
         self.nodes = []
         root = 0
         for i, c in enumerate(cliques):
@@ -141,17 +152,21 @@ class MolTree(object):
 
 
 if __name__ == "__main__":
+    seed = 2022
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+
     vocab = {}
     cnt = 0
     rot = 0
-    # reference_vocab = np.load('vocab.npy', allow_pickle='TRUE').item()
-    index_path = '../data/crossdocked_pocket10/index.pkl'
+    index_path = '/data/zhicai/zaixi/FLAG/crossdocked_pocket10/index.pkl'
     with open(index_path, 'rb') as f:
         index = pickle.load(f)
     for i, (pocket_fn, ligand_fn, _, rmsd_str) in enumerate(tqdm(index)):
         if pocket_fn is None: continue
         try:
-            path = '../data/crossdocked_pocket10/' + ligand_fn
+            path = '/data/zhicai/zaixi/FLAG/crossdocked_pocket10/' + ligand_fn
             mol = Chem.MolFromMolFile(path, sanitize=False)
             moltree = MolTree(mol)
             cnt += 1
@@ -177,4 +192,4 @@ if __name__ == "__main__":
     # number of molecules and vocab
     print('Size of the motif vocab:', len(vocab))
     print('Total number of molecules', cnt)
-    print('percent of molecules with rotatable bonds:', rot / cnt)
+    print('Percent of molecules with rotatable bonds:', rot / cnt)
