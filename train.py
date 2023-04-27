@@ -90,12 +90,11 @@ if __name__ == '__main__':
         for key in batch:
             batch[key] = batch[key].to(args.device)
 
-        protein_noise = torch.randn_like(batch['protein_pos']) * config.train.pos_noise_std
         ligand_noise = torch.randn_like(batch['ligand_context_pos']) * config.train.pos_noise_std * 2
         ligand_torsion_noise = torch.randn_like(batch['ligand_pos_torsion']) * config.train.pos_noise_std
 
         loss, loss_list = model.get_loss(
-            protein_pos=batch['protein_pos'] + protein_noise,
+            protein_pos=batch['protein_pos'],
             protein_atom_feature=batch['protein_atom_feature'].float(),
             ligand_pos=batch['ligand_context_pos'] + ligand_noise,
             ligand_atom_feature=batch['ligand_context_feature_full'].float(),
