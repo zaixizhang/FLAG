@@ -223,44 +223,43 @@ def tree_decomp(mol, reference_vocab=None):
         a2 = bond.GetEndAtom().GetIdx()
         if not bond.IsInRing():
             clusters.append({a1, a2})
+    # extract rotatable bonds
 
     ssr = [set(x) for x in Chem.GetSymmSSSR(mol)]
     # remove too large circles
     ssr = [x for x in ssr if len(x) <= 8]
-    clusters.extend(ssr)
 
-    nei_list = [[] for _ in range(n_atoms)]
-    for i in range(len(clusters)):
-        for atom in clusters[i]:
-            nei_list[atom].append(i)
-
-    # Merge Rings with intersection > 2 atoms/ at least 3 joint atoms
+    # Merge Rings with intersection >= 2 atoms
     # check the reference_vocab if it is not None
-    for i in range(len(clusters)):
-        if len(clusters[i]) <= 2:
+    for i in range(len(ssr)-1):
+        if len(ssr[i]) <= 2:
             continue
-        for atom in clusters[i]:
-            for j in nei_list[atom]:
-                if i >= j or len(clusters[j]) <= 2:
-                    continue
-                inter = clusters[i] & clusters[j]
+        for j in range(i+1, len(ssr)):
+            if len(ssr[j]) <= 2:
+                continue
+            inter = ssr[i] & ssr[j]
+            if reference_vocab is not None:
+                if len(inter) >= 2:
+                    merge = ssr[i] | ssr[j]
+                    smile_merge = Chem.MolFragmentToSmiles(mol, merge, canonical=True, kekuleSmiles=True)
+                    if reference_vocab[smile_merge] <= 100 and len(inter) == 2:
+                        continue
+                    ssr[i] = merge
+                    ssr[j] = set()
+            else:
                 if len(inter) > 2:
-                    merge = clusters[i] | clusters[j]
-                    if reference_vocab is not None:
-                        smile_merge = Chem.MolFragmentToSmiles(mol, merge, canonical=True, kekuleSmiles=True)
-                        if reference_vocab[smile_merge] <= 99:
-                            continue
-                    clusters[i] = merge
-                    clusters[j] = set()
+                    merge = ssr[i] | ssr[j]
+                    ssr[i] = merge
+                    ssr[j] = set()
 
-    clusters = [c for c in clusters if len(c) > 0]
+    ssr = [c for c in ssr if len(c) > 0]
+    clusters.extend(ssr)
     nei_list = [[] for _ in range(n_atoms)]
     for i in range(len(clusters)):
         for atom in clusters[i]:
             nei_list[atom].append(i)
 
     # Build edges
-
     for atom in range(n_atoms):
         if len(nei_list[atom]) <= 1:
             continue
