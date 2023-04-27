@@ -414,7 +414,6 @@ if __name__ == '__main__':
         protein_atom_feature_dim=protein_featurizer.feature_dim,
         ligand_atom_feature_dim=ligand_featurizer.feature_dim,
         vocab=vocab,
-        weight=weight,
     ).to(args.device)
     model.load_state_dict(ckpt['model'])
 
