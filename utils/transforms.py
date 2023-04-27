@@ -512,6 +512,7 @@ class LigandBFSMask(object):
 
         if len(data['ligand_context_pos']) > 0:
             data['protein_alpha_carbon_index'] = torch.tensor([i for i, name in enumerate(data['protein_atom_name']) if name =="CA"])
+            data['alpha_carbon_indicator'] = torch.tensor([True if name =="CA" else False for name in data['protein_atom_name']])
 
         # assemble prediction
         data['protein_contact'] = torch.tensor(data['protein_contact'])
