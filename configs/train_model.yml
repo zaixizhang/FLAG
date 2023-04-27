@@ -4,7 +4,7 @@ model:
   checkpoint: None
   refinement: True
   encoder:
-    name: schnet
+    name: tf # we use transformer encoder for better performance in our latest implementation
     hidden_channels: 256
     edge_channels: 64
     key_channels: 128
