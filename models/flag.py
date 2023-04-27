@@ -1,5 +1,4 @@
 import sys
-
 sys.path.append("..")
 import torch
 import torch.nn as nn
@@ -9,7 +8,6 @@ from torch_scatter import scatter_add, scatter_mean
 from torch_geometric.data import Data, Batch
 
 from .encoders import get_encoder, GNN_graphpred, MLP
-from .fields import get_field
 from .common import *
 from utils import dihedral_utils, chemutils
 
@@ -33,7 +31,6 @@ class FLAG(Module):
         else:
             self.alpha_mlp = MLP(in_dim=config.hidden_channels * 3, out_dim=1, num_layers=2)
         self.focal_mlp = MLP(in_dim=config.hidden_channels, out_dim=1, num_layers=1)
-        #self.c_mlp = MLP(in_dim=config.hidden_channels*4, out_dim=1, num_layers=1)
         self.dist_mlp = MLP(in_dim=protein_atom_feature_dim + ligand_atom_feature_dim, out_dim=1, num_layers=2)
         if config.refinement:
             self.refine_protein = MLP(in_dim=config.hidden_channels * 2 + config.encoder.edge_channels, out_dim=1, num_layers=2)
@@ -59,19 +56,23 @@ class FLAG(Module):
 
         return focal_pred, protein_mask, h_ctx
 
-    def forward_motif(self, h_ctx_focal, current_wid, current_atoms_batch):
+    def forward_motif(self, h_ctx_focal, current_wid, current_atoms_batch, n_samples=1):
         node_hiddens = scatter_add(h_ctx_focal, dim=0, index=current_atoms_batch)
         motif_hiddens = self.embedding(current_wid)
         pred_vecs = torch.cat([node_hiddens, motif_hiddens], dim=1)
         pred_vecs = nn.ReLU()(self.W(pred_vecs))
         pred_scores = self.W_o(pred_vecs)
+        pred_scores = F.softmax(pred_scores, dim=-1)
         _, preds = torch.max(pred_scores, dim=1)
-        # random select in topk
-        k = 5
+        # random select n_samples in topk
+        k = 5*n_samples
         select_pool = torch.topk(pred_scores, k, dim=1)[1]
-        index = torch.randint(k, (select_pool.shape[0],))
-        preds = torch.cat([select_pool[i][index[i]].unsqueeze(0) for i in range(len(index))])
-        return preds
+        index = torch.randint(k, (select_pool.shape[0], n_samples))
+        preds = torch.cat([select_pool[i][index[i]] for i in range(len(index))])
+
+        idx_parent = torch.repeat_interleave(torch.arange(pred_scores.shape[0]), n_samples, dim=0).to(pred_scores.device)
+        prob = y_query_pred[idx_parent, preds]
+        return preds, prob
 
     def forward_attach(self, mol_list, next_motif_smiles):
         cand_mols, cand_batch, new_atoms, one_atom_attach, intersection, attach_fail = chemutils.assemble(mol_list, next_motif_smiles)
@@ -174,8 +175,7 @@ class FLAG(Module):
 
         # distance matrix prediction
         if len(batch['true_dm']) > 0:
-            input = torch.cat(
-                [protein_atom_feature[batch['dm_protein_idx']], ligand_atom_feature[batch['dm_ligand_idx']]], dim=-1)
+            input = torch.cat([protein_atom_feature[batch['dm_protein_idx']], ligand_atom_feature[batch['dm_ligand_idx']]], dim=-1)
             pred_dist = self.dist_mlp(input)
             dm_loss = self.dist_loss(pred_dist, batch['true_dm'])/10
             loss_list[3] = dm_loss.item()
@@ -190,14 +190,16 @@ class FLAG(Module):
             input_distance_intra = ligand_pos[batch['sr_ligand_idx0']] - ligand_pos[batch['sr_ligand_idx1']]
             distance_emb1 = self.encoder.distance_expansion(torch.norm(input_distance_alpha, dim=1))
             distance_emb2 = self.encoder.distance_expansion(torch.norm(input_distance_intra, dim=1))
-            input1 = torch.cat([h_ctx_ligand[batch['sr_ligand_idx']], h_ctx_protein[batch['sr_protein_idx']], distance_emb1], dim=-1)
-            input2 = torch.cat([h_ctx_ligand[batch['sr_ligand_idx0']], h_ctx_ligand[batch['sr_ligand_idx1']], distance_emb2], dim=-1)
+            input1 = torch.cat([h_ctx_ligand[batch['sr_ligand_idx']], h_ctx_protein[batch['sr_protein_idx']], distance_emb1], dim=-1)[true_distance_alpha<=10.0]
+            input2 = torch.cat([h_ctx_ligand[batch['sr_ligand_idx0']], h_ctx_ligand[batch['sr_ligand_idx1']], distance_emb2], dim=-1)[true_distance_intra<=10.0]
             #distance cut_off
-            norm_dir1 = F.normalize(input_distance_alpha, p=2, dim=1)* torch.where(true_distance_alpha>10.0, torch.zeros_like(true_distance_alpha), true_distance_alpha).unsqueeze(1)
-            norm_dir2 = F.normalize(input_distance_intra, p=2, dim=1)* torch.where(true_distance_intra>10.0, torch.zeros_like(true_distance_intra), true_distance_intra).unsqueeze(1)
-            new_ligand_pos = ligand_pos\
-                      + scatter_mean(self.refine_protein(input1)*norm_dir1, dim=0, index=batch['sr_ligand_idx'])\
-                      + scatter_mean(self.refine_ligand(input2)*norm_dir2, dim=0, index=batch['sr_ligand_idx0'])
+            norm_dir1 = F.normalize(input_distance_alpha, p=2, dim=1)[true_distance_alpha<=10.0]
+            norm_dir2 = F.normalize(input_distance_intra, p=2, dim=1)[true_distance_intra<=10.0]
+            force1 = scatter_mean(self.refine_protein(input1)*norm_dir1, dim=0, index=batch['sr_ligand_idx'][true_distance_alpha<=10.0], dim_size=ligand_pos.size(0))
+            force2 = scatter_mean(self.refine_ligand(input2)*norm_dir2, dim=0, index=batch['sr_ligand_idx0'][true_distance_intra<=10.0], dim_size=ligand_pos.size(0))
+            new_ligand_pos = ligand_pos
+            new_ligand_pos += force1
+            new_ligand_pos += force2
             refine_dist1 = torch.norm(new_ligand_pos[batch['sr_ligand_idx']] - protein_pos[batch['sr_protein_idx']], dim=1)
             refine_dist2 = torch.norm(new_ligand_pos[batch['sr_ligand_idx0']] - new_ligand_pos[batch['sr_ligand_idx1']], dim=1)
             sr_loss = (self.dist_loss(refine_dist1, true_distance_alpha) + self.dist_loss(refine_dist2, true_distance_intra))/10
