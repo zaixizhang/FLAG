@@ -61,7 +61,7 @@ if __name__ == '__main__':
     # Datasets and loaders
     logger.info('Loading dataset...')
     dataset, subsets = get_dataset(config=config.dataset, transform=transform, )
-    train_set, val_set = subsets['train'], subsets['val']
+    train_set, val_set = subsets['train'], subsets['test']
     train_iterator = inf_iterator(DataLoader(train_set, batch_size=config.train.batch_size,
                                              shuffle=True, num_workers=config.train.num_workers,
                                              collate_fn=collate_mols))
