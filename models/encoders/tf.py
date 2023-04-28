@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 from torch import nn
-from torch.nn import Module, Sequential, ModuleList, Linear, Conv1d
+from torch.nn import Module, Sequential, ModuleList, Linear, Conv1d, LeakyReLU
 from torch_geometric.nn import radius_graph, knn_graph
 from torch_scatter import scatter_sum, scatter_softmax
 import math
@@ -28,22 +28,21 @@ class AttentionInteractionBlock(Module):
 
         self.weight_k_net = Sequential(
             Linear(edge_channels, key_channels // num_heads),
-            ShiftedSoftplus(),
+            LeakyReLU(),
             Linear(key_channels // num_heads, key_channels // num_heads),
         )
         self.weight_k_lin = Linear(key_channels // num_heads, key_channels // num_heads)
 
         self.weight_v_net = Sequential(
             Linear(edge_channels, hidden_channels // num_heads),
-            ShiftedSoftplus(),
+            LeakyReLU(),
             Linear(hidden_channels // num_heads, hidden_channels // num_heads),
         )
         self.weight_v_lin = Linear(hidden_channels // num_heads, hidden_channels // num_heads)
 
         self.centroid_lin = Linear(hidden_channels, hidden_channels)
-        self.act = ShiftedSoftplus()
+        self.act = LeakyReLU()
         self.out_transform = Linear(hidden_channels, hidden_channels)
-        self.layernorm_attention = nn.LayerNorm(hidden_channels)
         self.layernorm_ffn = nn.LayerNorm(hidden_channels)
 
     def forward(self, x, edge_index, edge_attr):
@@ -55,9 +54,6 @@ class AttentionInteractionBlock(Module):
         """
         N = x.size(0)
         row, col = edge_index  # (E,) , (E,)
-
-        # self-attention layer_norm
-        x = self.layernorm_attention(x)
 
         # Project to multiple key, query and value spaces
         h_keys = self.k_lin(x.unsqueeze(-1)).view(N, self.num_heads, -1)  # (N, heads, K_per_head)

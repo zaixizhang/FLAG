@@ -1,5 +1,5 @@
 from .schnet import SchNetEncoder
-from .cftfm import CFTransformerEncoder
+from .tf import TransformerEncoder
 from .gnn import GNN_graphpred, MLP
 
 
@@ -12,8 +12,8 @@ def get_encoder(config):
             edge_channels = config.edge_channels,
             cutoff = config.cutoff,
         )
-    elif config.name == 'cftfm':
-        return CFTransformerEncoder(
+    elif config.name == 'tf':
+        return TransformerEncoder(
             hidden_channels = config.hidden_channels,
             edge_channels = config.edge_channels,
             key_channels = config.key_channels,
