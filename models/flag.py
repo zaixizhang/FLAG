@@ -113,11 +113,9 @@ class FLAG(Module):
         if self.config.random_alpha:
             rand_dist = torch.distributions.normal.Normal(loc=0, scale=1)
             rand_alpha = rand_dist.sample(hx.shape).to(hx.device)
-            alpha = self.alpha_mlp(torch.cat([hx, hy, h_mol, rand_alpha], dim=-1)) + self.alpha_mlp(
-                torch.cat([hy, hx, h_mol, rand_alpha], dim=-1))
+            alpha = self.alpha_mlp(torch.cat([hx, hy, h_mol, rand_alpha], dim=-1))
         else:
-            alpha = self.alpha_mlp(torch.cat([hx, hy, h_mol], dim=-1)) + self.alpha_mlp(
-                torch.cat([hy, hx, h_mol], dim=-1))
+            alpha = self.alpha_mlp(torch.cat([hx, hy, h_mol], dim=-1))
         return alpha
 
     def get_loss(self, protein_pos, protein_atom_feature, ligand_pos, ligand_atom_feature, ligand_pos_torsion,
