@@ -73,7 +73,7 @@ class FLAG(Module):
         preds = torch.cat([select_pool[i][index[i]] for i in range(len(index))])
 
         idx_parent = torch.repeat_interleave(torch.arange(pred_scores.shape[0]), n_samples, dim=0).to(pred_scores.device)
-        prob = y_query_pred[idx_parent, preds]
+        prob = pred_scores[idx_parent, preds]
         return preds, prob
 
     def forward_attach(self, mol_list, next_motif_smiles):
@@ -204,7 +204,7 @@ class FLAG(Module):
             new_ligand_pos += force2
             refine_dist1 = torch.norm(new_ligand_pos[batch['sr_ligand_idx']] - protein_pos[batch['sr_protein_idx']], dim=1)
             refine_dist2 = torch.norm(new_ligand_pos[batch['sr_ligand_idx0']] - new_ligand_pos[batch['sr_ligand_idx1']], dim=1)
-            sr_loss = (self.dist_loss(refine_dist1, true_distance_alpha) + self.dist_loss(refine_dist2, true_distance_intra))/10
+            sr_loss = (self.dist_loss(refine_dist1, true_distance_alpha) + self.dist_loss(refine_dist2, true_distance_intra))
             loss_list[5] = sr_loss.item()
         else:
             sr_loss = 0
