@@ -503,16 +503,13 @@ class LigandBFSMask(object):
         if len(data['ligand_context_pos']) > 0:
             sample_idx = random.sample(data['moltree'].nodes[bfs_perm[0]].clique, 2)
             data['dm_ligand_idx'] = torch.cat([torch.where(context_idx == i)[0] for i in sample_idx])
-            data['dm_protein_idx'] = torch.sort(
-                torch.norm(data['protein_pos'] - data['ligand_context_pos'][data['dm_ligand_idx'][0]], dim=-1)).indices[:4]
-            data['true_dm'] = torch.norm(data['protein_pos'][data['dm_protein_idx']].unsqueeze(1) - data['ligand_context_pos'][
-                data['dm_ligand_idx']].unsqueeze(0), dim=-1).reshape(-1)
+            data['dm_protein_idx'] = torch.sort(torch.norm(data['protein_pos'] - data['ligand_context_pos'][data['dm_ligand_idx'][0]], dim=-1)).indices[:4]
+            data['true_dm'] = torch.norm(data['protein_pos'][data['dm_protein_idx']].unsqueeze(1) - data['ligand_context_pos'][data['dm_ligand_idx']].unsqueeze(0), dim=-1).reshape(-1)
         else:
             data['true_dm'] = torch.tensor([])
 
-        if len(data['ligand_context_pos']) > 0:
-            data['protein_alpha_carbon_index'] = torch.tensor([i for i, name in enumerate(data['protein_atom_name']) if name =="CA"])
-            data['alpha_carbon_indicator'] = torch.tensor([True if name =="CA" else False for name in data['protein_atom_name']])
+        data['protein_alpha_carbon_index'] = torch.tensor([i for i, name in enumerate(data['protein_atom_name']) if name =="CA"])
+        data['alpha_carbon_indicator'] = torch.tensor([True if name =="CA" else False for name in data['protein_atom_name']])
 
         # assemble prediction
         data['protein_contact'] = torch.tensor(data['protein_contact'])
@@ -567,7 +564,7 @@ class LigandBFSMask(object):
             y_id = (current_idx_set - {x_id}).pop()
             data['ligand_torsion_xy_index'] = torch.cat([torch.where(torch.LongTensor(all_idx) == i)[0] for i in [x_id, y_id]])
 
-            x_pos, y_pos = data['ligand_pos'][x_id], data['ligand_pos'][y_id]
+            x_pos, y_pos = deepcopy(data['ligand_pos'][x_id]), deepcopy(data['ligand_pos'][y_id])
             # remove x, y, and non-generated elements
             xn, yn = deepcopy(data['ligand_neighbors'][x_id]), deepcopy(data['ligand_neighbors'][y_id])
             xn.remove(y_id)
@@ -576,7 +573,7 @@ class LigandBFSMask(object):
             # debug
             xn, yn = list_filter(xn, all_idx), list_filter(yn, all_idx)
             xn_pos, yn_pos = torch.zeros(3, 3), torch.zeros(3, 3)
-            xn_pos[:len(xn)], yn_pos[:len(yn)] = data['ligand_pos'][xn], data['ligand_pos'][yn]
+            xn_pos[:len(xn)], yn_pos[:len(yn)] = deepcopy(data['ligand_pos'][xn]), deepcopy(data['ligand_pos'][yn])
             xn_idx, yn_idx = torch.cartesian_prod(torch.arange(3), torch.arange(3)).chunk(2, dim=-1)
             xn_idx = xn_idx.squeeze(-1)
             yn_idx = yn_idx.squeeze(-1)
@@ -590,15 +587,15 @@ class LigandBFSMask(object):
 
             # random rotate to simulate the inference situation
             dir = data['ligand_pos'][current_idx[0]] - data['ligand_pos'][current_idx[1]]
-            ref = data['ligand_pos'][current_idx[0]]
-            next_motif_pos = data['ligand_pos'][next_idx]
+            ref = deepcopy(data['ligand_pos'][current_idx[0]])
+            next_motif_pos = deepcopy(data['ligand_pos'][next_idx])
             data['ligand_pos'][next_idx] = rand_rotate(dir, ref, next_motif_pos)
 
             data['ligand_element_torsion'] = data['ligand_element'][all_idx]
             data['ligand_pos_torsion'] = data['ligand_pos'][all_idx]
             data['ligand_feature_torsion'] = data['ligand_atom_feature_full'][all_idx]
 
-            x_pos = data['ligand_pos'][x_id]
+            x_pos = deepcopy(data['ligand_pos'][x_id])
             data['y_pos'] = data['ligand_pos'][y_id] - x_pos
             data['xn_pos'], data['yn_pos'] = torch.zeros(3, 3), torch.zeros(3, 3)
             data['xn_pos'][:len(xn)], data['yn_pos'][:len(yn)] = data['ligand_pos'][xn] - x_pos, data['ligand_pos'][yn] - x_pos
