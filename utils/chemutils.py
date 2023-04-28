@@ -105,9 +105,9 @@ def kabsch_torch(A, B, C):
 def eig_coord_from_dist(D):
     M = (D[:1, :] + D[:, :1] - D) / 2
     L, V = torch.linalg.eigh(M)
-    L = torch.diag_embed(L)
+    L = torch.diag_embed(torch.sort(L, descending=True)[0])
     X = torch.matmul(V, L.clamp(min=0).sqrt())
-    return X[:, -3:].detach()
+    return X[:, :3].detach()
 
 
 def self_square_dist(X):
