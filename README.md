@@ -33,7 +33,6 @@ python train.py
 ```
 python motif_sample.py
 ```
-We are optimizing motif_sample.py for the inconsistencies due to model updates, thanks for your patience!
 
 ## Reference
 ```
