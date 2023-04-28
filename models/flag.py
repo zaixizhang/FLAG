@@ -6,6 +6,7 @@ from torch.nn import Module, Linear, Embedding
 from torch.nn import functional as F
 from torch_scatter import scatter_add, scatter_mean
 from torch_geometric.data import Data, Batch
+from copy import deepcopy
 
 from .encoders import get_encoder, GNN_graphpred, MLP
 from .common import *
@@ -30,7 +31,8 @@ class FLAG(Module):
             self.alpha_mlp = MLP(in_dim=config.hidden_channels * 4, out_dim=1, num_layers=2)
         else:
             self.alpha_mlp = MLP(in_dim=config.hidden_channels * 3, out_dim=1, num_layers=2)
-        self.focal_mlp = MLP(in_dim=config.hidden_channels, out_dim=1, num_layers=1)
+        self.focal_mlp_ligand = MLP(in_dim=config.hidden_channels, out_dim=1, num_layers=1)
+        self.focal_mlp_protein = MLP(in_dim=config.hidden_channels, out_dim=1, num_layers=1)
         self.dist_mlp = MLP(in_dim=protein_atom_feature_dim + ligand_atom_feature_dim, out_dim=1, num_layers=2)
         if config.refinement:
             self.refine_protein = MLP(in_dim=config.hidden_channels * 2 + config.encoder.edge_channels, out_dim=1, num_layers=2)
@@ -52,7 +54,7 @@ class FLAG(Module):
                                                                          batch_protein=batch_protein,
                                                                          batch_ligand=batch_ligand)
         h_ctx = self.encoder(node_attr=h_ctx, pos=pos_ctx, batch=batch_ctx)  # (N_p+N_l, H)
-        focal_pred = self.focal_mlp(h_ctx)
+        focal_pred = torch.cat([self.focal_mlp_protein(h_ctx[protein_mask]), self.focal_mlp_ligand(h_ctx[~protein_mask])], dim=0)
 
         return focal_pred, protein_mask, h_ctx
 
@@ -168,7 +170,7 @@ class FLAG(Module):
             comb_loss = 0
 
         # focal prediction
-        focal_ligand_pred, focal_protein_pred = self.focal_mlp(h_ctx_ligand), self.focal_mlp(h_ctx_protein)
+        focal_ligand_pred, focal_protein_pred = self.focal_mlp_ligand(h_ctx_ligand), self.focal_mlp_protein(h_ctx_protein)
         focal_loss = self.focal_loss(focal_ligand_pred.reshape(-1), batch['ligand_frontier'].float()) +\
                      self.focal_loss(focal_protein_pred.reshape(-1), batch['protein_contact'].float())
         loss_list[2] = focal_loss.item()
@@ -197,7 +199,7 @@ class FLAG(Module):
             norm_dir2 = F.normalize(input_distance_intra, p=2, dim=1)[true_distance_intra<=10.0]
             force1 = scatter_mean(self.refine_protein(input1)*norm_dir1, dim=0, index=batch['sr_ligand_idx'][true_distance_alpha<=10.0], dim_size=ligand_pos.size(0))
             force2 = scatter_mean(self.refine_ligand(input2)*norm_dir2, dim=0, index=batch['sr_ligand_idx0'][true_distance_intra<=10.0], dim_size=ligand_pos.size(0))
-            new_ligand_pos = ligand_pos
+            new_ligand_pos = deepcopy(ligand_pos)
             new_ligand_pos += force1
             new_ligand_pos += force2
             refine_dist1 = torch.norm(new_ligand_pos[batch['sr_ligand_idx']] - protein_pos[batch['sr_protein_idx']], dim=1)
@@ -214,8 +216,7 @@ class FLAG(Module):
             yn_pos = torch.matmul(Hx, batch['yn_pos'].permute(0, 2, 1)).permute(0, 2, 1)
             y_pos = torch.matmul(Hx, batch['y_pos'].unsqueeze(1).permute(0, 2, 1)).squeeze(-1)
 
-            hx, hy = h_ctx_ligand_torsion[batch['ligand_torsion_xy_index'][:, 0]], h_ctx_ligand_torsion[
-                batch['ligand_torsion_xy_index'][:, 1]]
+            hx, hy = h_ctx_ligand_torsion[batch['ligand_torsion_xy_index'][:, 0]], h_ctx_ligand_torsion[batch['ligand_torsion_xy_index'][:, 1]]
             h_mol = scatter_add(h_ctx_ligand_torsion, dim=0, index=batch['ligand_element_torsion_batch'])
             if self.config.random_alpha:
                 rand_dist = torch.distributions.normal.Normal(loc=0, scale=1)
@@ -233,8 +234,7 @@ class FLAG(Module):
                                                  torch.zeros_like(y_pos).unsqueeze(1).repeat(1, 9, 1),
                                                  y_pos.unsqueeze(1).repeat(1, 9, 1),
                                                  yn_pos[:, q_idx])
-            dihedral_loss = torch.mean(
-                dihedral_utils.von_Mises_loss(batch['true_cos'], pred_cos.reshape(-1), batch['true_sin'], pred_cos.reshape(-1))[batch['dihedral_mask']])
+            dihedral_loss = torch.mean(dihedral_utils.von_Mises_loss(batch['true_cos'], pred_cos.reshape(-1), batch['true_sin'], pred_cos.reshape(-1))[batch['dihedral_mask']])
             torsion_loss = -dihedral_loss
             loss_list[4] = torsion_loss.item()
         else:
