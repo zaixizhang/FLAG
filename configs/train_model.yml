@@ -2,7 +2,7 @@ model:
   hidden_channels: 256
   random_alpha: False
   checkpoint: None
-  refinement: True
+  refinement: False
   encoder:
     name: tf # we use transformer encoder for better performance in our latest implementation
     hidden_channels: 256
