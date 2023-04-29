@@ -14,6 +14,9 @@ from rdkit.Chem.rdchem import BondType
 from rdkit.Chem import ChemicalFeatures, rdMolDescriptors
 from rdkit import RDConfig
 from rdkit.Chem.Descriptors import MolLogP, qed
+from copy import deepcopy
+from torch_scatter import scatter_add, scatter_mean
+from rdkit.Geometry import Point3D
 
 from models.flag import FLAG
 from utils.transforms import *
@@ -70,14 +73,18 @@ def SetAtomNum(mol, atoms):
 
 
 def SetMolPos(mol_list, pos_list):
+    new_mol_list = []
     for i in range(len(pos_list)):
         mol = mol_list[i]
-        conf = mol.GetConformer()
-        pos = np.array(pos_list[i])
+        conf = mol.GetConformer(0)
+        pos = pos_list[i].cpu().numpy()
         if mol.GetNumAtoms() == len(pos):
             for node in range(mol.GetNumAtoms()):
-                conf.SetAtomPosition(node, pos[node])
-    return mol_list
+                x, y, z = pos[node]
+                conf.SetAtomPosition(node, Point3D(x,y,z))
+            AllChem.UFFOptimizeMolecule(mol)
+            new_mol_list.append(mol)
+    return new_mol_list
 
 
 def lipinski(mol):
@@ -99,8 +106,7 @@ def refine_pos(ligand_pos, protein_pos, h_ctx_ligand, h_ctx_protein, model, batc
                ligand_batch):
     protein_offsets = torch.cumsum(protein_batch.bincount(), dim=0)
     ligand_offsets = torch.cumsum(ligand_batch.bincount(), dim=0)
-    protein_offsets, ligand_offsets = torch.cat([torch.tensor([0]), protein_offsets]), torch.cat(
-        [torch.tensor([0]), ligand_offsets])
+    protein_offsets, ligand_offsets = torch.cat([torch.tensor([0]), protein_offsets]), torch.cat([torch.tensor([0]), ligand_offsets])
 
     sr_ligand_idx, sr_protein_idx = [], []
     sr_ligand_idx0, sr_ligand_idx1 = [], []
@@ -131,12 +137,12 @@ def refine_pos(ligand_pos, protein_pos, h_ctx_ligand, h_ctx_protein, model, batc
     # distance cut_off
     norm_dir1 = F.normalize(input_dir_alpha, p=2, dim=1)[dist_alpha <= 10.0]
     norm_dir2 = F.normalize(input_dir_intra, p=2, dim=1)[dist_intra <= 10.0]
-    force1 = scatter_mean(model.refine_protein(input1) * norm_dir1, dim=0, index=sr_ligand_idx[dist_alpha <= 10.0])
-    force2 = scatter_mean(model.refine_ligand(input2) * norm_dir2, dim=0, index=sr_ligand_idx0[dist_intra <= 10.0])
-    ligand_pos[:len(force1)] += force1
-    ligand_pos[:len(force2)] += force2
+    force1 = scatter_mean(model.refine_protein(input1) * norm_dir1, dim=0, index=sr_ligand_idx[dist_alpha <= 10.0], dim_size=ligand_pos.size(0))
+    force2 = scatter_mean(model.refine_ligand(input2) * norm_dir2, dim=0, index=sr_ligand_idx0[dist_intra <= 10.0], dim_size=ligand_pos.size(0))
+    ligand_pos += force1
+    ligand_pos += force2
 
-    ligand_pos = list(torch.split(ligand_pos, repeats))
+    ligand_pos = [ligand_pos[ligand_batch==k].float() for k in range(len(repeats))]
     return ligand_pos
 
 
@@ -163,8 +169,7 @@ def ligand_gen(batch, model, vocab, config, center, refinement=False):
             h_ctx_protein = h_ctx[mask_protein]
             focus_score = torch.sigmoid(focal_protein)
             #can_focus = focus_score > 0.5
-            slice_idx = torch.cat(
-                [torch.tensor([0]).to(h_ctx.device), torch.cumsum(batch['protein_element_batch'].bincount(), dim=0)])
+            slice_idx = torch.cat([torch.tensor([0]).to(h_ctx.device), torch.cumsum(batch['protein_element_batch'].bincount(), dim=0)])
             focal_id = []
             for j in range(len(slice_idx) - 1):
                 focus = focus_score[slice_idx[j]:slice_idx[j + 1]]
@@ -173,25 +178,22 @@ def ligand_gen(batch, model, vocab, config, center, refinement=False):
 
             h_ctx_focal = h_ctx_protein[focal_id]
             current_wid = torch.tensor([vocab.size()] * config.sample.batch_size)
-            next_motif_wid, motif_prob = model.forward_motif(h_ctx_focal, current_wid,
-                                                 torch.arange(config.sample.batch_size).to(h_ctx_focal.device))
-            logp_motif = [[p] for p in np.log(motif_prob.cpu().numpy())] #init logp list
-
+            next_motif_wid, motif_prob = model.forward_motif(h_ctx_focal, current_wid, torch.arange(config.sample.batch_size).to(h_ctx_focal.device))
             mol_list = [Chem.MolFromSmiles(vocab.get_smiles(id)) for id in next_motif_wid]
+
             for j in range(config.sample.batch_size):
                 AllChem.EmbedMolecule(mol_list[j])
                 AllChem.UFFOptimizeMolecule(mol_list[j])
                 ligand_pos, ligand_feat = torch.tensor(mol_list[j].GetConformer().GetPositions()), get_feat(mol_list[j])
                 feat_list.append(ligand_feat)
                 # set the initial positions with distance matrix
-                reference_pos, reference_idx = find_reference(batch['protein_pos'][slice_idx[j]:slice_idx[j + 1]],
-                                                              focal_id[j] - slice_idx[j])
+                reference_pos, reference_idx = find_reference(batch['protein_pos'][slice_idx[j]:slice_idx[j + 1]], focal_id[j] - slice_idx[j])
+
                 p_idx, l_idx = torch.cartesian_prod(torch.arange(4), torch.arange(len(ligand_pos))).chunk(2, dim=-1)
                 p_idx = p_idx.squeeze(-1)
                 l_idx = l_idx.squeeze(-1)
-                d_m = model.dist_mlp(
-                    torch.cat([protein_atom_feature[reference_idx[p_idx]], ligand_feat[l_idx]], dim=-1)).reshape(4,
-                                                                                                                 len(ligand_pos))
+                d_m = model.dist_mlp(torch.cat([protein_atom_feature[reference_idx[p_idx]], ligand_feat[l_idx]], dim=-1)).reshape(4,len(ligand_pos))
+
                 d_m = d_m ** 2
                 p_d, l_d = self_square_dist(reference_pos), self_square_dist(ligand_pos)
                 D = torch.cat([torch.cat([p_d, d_m], dim=1), torch.cat([d_m.permute(1, 0), l_d], dim=1)])
@@ -229,7 +231,7 @@ def ligand_gen(batch, model, vocab, config, center, refinement=False):
             focal_ligand = focal_pred[~mask_protein]
             h_ctx_ligand = h_ctx[~mask_protein]
             focus_score = torch.sigmoid(focal_ligand)
-            can_focus = focus_score > 0.5
+            can_focus = focus_score > 0.3
             slice_idx = torch.cat([torch.tensor([0]), torch.cumsum(repeats, dim=0)])
 
             current_atoms_batch, current_atoms = [], []
@@ -253,15 +255,13 @@ def ligand_gen(batch, model, vocab, config, center, refinement=False):
 
             # assemble
             next_motif_smiles = [vocab.get_smiles(id) for id in next_motif_wid]
-            new_mol_list, new_atoms, one_atom_attach, intersection, attach_fail = model.forward_attach(mol_list,
-                                                                                                       next_motif_smiles)
+            new_mol_list, new_atoms, one_atom_attach, intersection, attach_fail = model.forward_attach(mol_list, next_motif_smiles)
 
             for j in range(len(mol_list)):
                 if ~finished[j] and ~attach_fail[j]:
                     # num_new_atoms
                     mol_list[j] = new_mol_list[j]
-            rotatable = torch.logical_and(torch.tensor(current_atoms_batch).bincount() == 2,
-                                          torch.tensor(one_atom_attach))
+            rotatable = torch.logical_and(torch.tensor(current_atoms_batch).bincount() == 2, torch.tensor(one_atom_attach))
             rotatable = torch.logical_and(rotatable, ~torch.tensor(attach_fail))
             rotatable = torch.logical_and(rotatable, ~finished)
             # update motif2atoms and atom2motif
@@ -285,7 +285,7 @@ def ligand_gen(batch, model, vocab, config, center, refinement=False):
                 mol = mol_list[j]
                 anchor = [atom.GetIdx() for atom in mol.GetAtoms() if atom.GetAtomMapNum() == 1]
                 # positions = mol.GetConformer().GetPositions()
-                anchor_pos = pos_list[j][anchor]
+                anchor_pos = deepcopy(pos_list[j][anchor])
                 Chem.SanitizeMol(mol)
                 AllChem.EmbedMolecule(mol, useRandomCoords=True)
                 try:
@@ -314,9 +314,7 @@ def ligand_gen(batch, model, vocab, config, center, refinement=False):
                 repeats = torch.tensor([len(pos) for pos in pos_list])
                 ligand_batch = torch.repeat_interleave(torch.arange(len(pos_list)), repeats)
                 slice_idx = torch.cat([torch.tensor([0]), torch.cumsum(repeats, dim=0)])
-                xy_index = [(np.array(motif_to_atoms[j][motif_id[j]]) + slice_idx[j].item()).tolist() for j in
-                            range(len(slice_idx) - 1) if
-                            rotatable[j]]
+                xy_index = [(np.array(motif_to_atoms[j][motif_id[j]]) + slice_idx[j].item()).tolist() for j in range(len(slice_idx) - 1) if rotatable[j]]
 
                 alpha = model.forward_alpha(protein_pos=batch['protein_pos'].float(),
                                             protein_atom_feature=batch['protein_atom_feature'].float(),
@@ -334,12 +332,10 @@ def ligand_gen(batch, model, vocab, config, center, refinement=False):
                 for j in range(len(alpha)):
                     mol = mol_list[rotatable_id[j]]
                     new_idx = [atom.GetIdx() for atom in mol.GetAtoms() if atom.GetAtomMapNum() == 2]
-                    positions = pos_list[rotatable_id[j]]
+                    positions = deepcopy(pos_list[rotatable_id[j]])
 
                     xn_pos = positions[new_idx].float()
-                    xn_pos = rand_rotate((positions[x_index[j]] - positions[y_index[j]]).reshape(-1),
-                                         positions[x_index[j]].reshape(-1),
-                                         xn_pos, alpha[j])
+                    xn_pos = rand_rotate((positions[x_index[j]] - positions[y_index[j]]).reshape(-1), positions[x_index[j]].reshape(-1), xn_pos, alpha[j])
                     if xn_pos.shape[0] > 0:
                         pos_list[rotatable_id[j]][-len(xn_pos):] = xn_pos
                     conf = mol.GetConformer()
@@ -430,6 +426,7 @@ if __name__ == '__main__':
                 for key in batch:
                     batch[key] = batch[key].to(args.device)'''
                 gen_data, pos_list = ligand_gen(batch, model, vocab, config, center)
+                SetMolPos(gen_data, pos_list)
                 data_list.extend(gen_data)
                 # Calculate metrics
                 print([Chem.MolToSmiles(mol) for mol in data_list])
@@ -438,10 +435,7 @@ if __name__ == '__main__':
                 logp_list = [MolLogP(mol) for mol in smiles]
                 sa_list = [compute_sa_score(mol) for mol in smiles]
                 Lip_list = [lipinski(mol) for mol in smiles]
-                print('QED %.6f | LogP %.6f | SA %.6f | Lipinski %.6f \n' % (
-                    np.average(qed_list), np.average(logp_list), np.average(sa_list), np.average(Lip_list)))
-                print(sa_list)
-                SetMolPos(data_list, pos_list)
+                print('QED %.6f | LogP %.6f | SA %.6f | Lipinski %.6f \n' % (np.average(qed_list), np.average(logp_list), np.average(sa_list), np.average(Lip_list)))
 
                 with open(os.path.join(log_dir, 'SMILES.txt'), 'a') as smiles_f:
                     for i, mol in enumerate(data_list):
