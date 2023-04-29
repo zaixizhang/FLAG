@@ -77,13 +77,16 @@ def SetMolPos(mol_list, pos_list):
     for i in range(len(pos_list)):
         mol = mol_list[i]
         conf = mol.GetConformer(0)
-        pos = pos_list[i].cpu().numpy()
+        pos = pos_list[i].double().numpy()
         if mol.GetNumAtoms() == len(pos):
             for node in range(mol.GetNumAtoms()):
                 x, y, z = pos[node]
                 conf.SetAtomPosition(node, Point3D(x,y,z))
-            AllChem.UFFOptimizeMolecule(mol)
-            new_mol_list.append(mol)
+            try:
+                AllChem.UFFOptimizeMolecule(mol)
+                new_mol_list.append(mol)
+            except:
+                new_mol_list.append(mol)
     return new_mol_list
 
 
