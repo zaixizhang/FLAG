@@ -177,7 +177,12 @@ class FLAG(Module):
         if len(batch['true_dm']) > 0:
             input = torch.cat([protein_atom_feature[batch['dm_protein_idx']], ligand_atom_feature[batch['dm_ligand_idx']]], dim=-1)
             pred_dist = self.dist_mlp(input)
-            dm_loss = self.dist_loss(pred_dist, batch['true_dm'])/10
+            
+            # mjseo: The dimension of pred_dist and batch['true_dm'] is not match.
+            # dm_loss = self.dist_loss(pred_dist, batch['true_dm'])/10
+            dm_target = batch['true_dm'].unsqueeze(-1)
+            dm_loss = self.dist_loss(pred_dist, dm_target)
+            
             loss_list[3] = dm_loss.item()
         else:
             dm_loss = 0
