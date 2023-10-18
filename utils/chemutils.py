@@ -37,7 +37,7 @@ def list_filter(a,b):
 
 
 def rand_rotate(dir, ref, pos, alpha=None):
-    #dir = dir/torch.norm(dir)
+    dir = dir/torch.norm(dir)
     if alpha is None:
         alpha = torch.randn(1)
     n_pos = pos.shape[0]
