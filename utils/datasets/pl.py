@@ -49,7 +49,7 @@ class PocketLigandPairDataset(Dataset):
     def __init__(self, raw_path, transform=None):
         super().__init__()
         self.raw_path = raw_path.rstrip('/')
-        self.index_path = os.path.join(self.raw_path, 'index.pkl')
+        self.index_path = os.path.join(self.raw_path, 'index.pt')
         self.processed_path = os.path.join(os.path.dirname(self.raw_path),
                                            os.path.basename(self.raw_path) + '_processed.lmdb')
         self.name2id_path = os.path.join(os.path.dirname(self.raw_path),
@@ -96,29 +96,41 @@ class PocketLigandPairDataset(Dataset):
             subdir=False,
             readonly=False,  # Writable
         )
-        with open(self.index_path, 'rb') as f:
-            index = pickle.load(f)
+        #with open(self.index_path, 'rb') as f:
+            #index = pickle.load(f)
+        index = torch.load(self.index_path)
+        vocab = []
+        for line in open('./vocab.txt'):
+            p, _, _ = line.partition(':')
+            vocab.append(p)
 
         num_skipped = 0
         with db.begin(write=True, buffers=True) as txn:
-            for i, (pocket_fn, ligand_fn, _, rmsd_str) in enumerate(tqdm(index)):
-                if pocket_fn is None: continue
+            for i, pdbid in enumerate(tqdm(index)):
+                if pdbid is None: continue
                 try:
+                    ligand_fn = os.path.join(pdbid, pdbid + '_ligand.sdf')
+                    pocket_fn = os.path.join(pdbid, pdbid + '_pocket.pdb')
                     pocket_dict = PDBProtein(os.path.join(self.raw_path, pocket_fn)).to_dict_atom()
                     ligand_dict = parse_sdf_file(os.path.join(self.raw_path, ligand_fn))
-                    ligand_dict['moltree'], pocket_dict['contact'], pocket_dict['contact_idx'] = reset_moltree_root(ligand_dict['moltree'],
-                                                                                        ligand_dict['pos'],
-                                                                                        pocket_dict['pos'])
+                    ligand_dict['moltree'], pocket_dict['contact'], pocket_dict['contact_idx'] = reset_moltree_root(
+                        ligand_dict['moltree'],
+                        ligand_dict['pos'],
+                        pocket_dict['pos'])
                     data = from_protein_ligand_dicts(
                         protein_dict=torchify_dict(pocket_dict),
                         ligand_dict=torchify_dict(ligand_dict),
                     )
                     data['protein_filename'] = pocket_fn
                     data['ligand_filename'] = ligand_fn
+                    data['pdbid'] = pdbid
                     txn.put(
                         key=str(i).encode(),
                         value=pickle.dumps(data)
                     )
+                    for c in ligand_dict['moltree'].nodes:
+                        smile_cluster = c.smiles
+                        assert smile_cluster in vocab
                 except:
                     num_skipped += 1
                     print('Skipping (%d) %s' % (num_skipped, ligand_fn,))
@@ -133,7 +145,7 @@ class PocketLigandPairDataset(Dataset):
             except AssertionError as e:
                 print(i, e)
                 continue
-            name = (data['protein_filename'], data['ligand_filename'])
+            name = data['pdbid']
             name2id[name] = i
         torch.save(name2id, self.name2id_path)
 
