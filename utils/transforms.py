@@ -323,7 +323,7 @@ class FeaturizeLigandBond(object):
         super().__init__()
 
     def __call__(self, data: ProteinLigandData):
-        data['ligand_bond_feature'] = F.one_hot(data['ligand_bond_type'] - 1, num_classes=3)  # (1,2,3) to (0,1,2)-onehot
+        data['ligand_bond_feature'] = F.one_hot((data['ligand_bond_type'] - 1)%3, num_classes=3)  # (1,2,3) to (0,1,2)-onehot
 
         neighbor_dict = {}
         # used in rotation angle prediction

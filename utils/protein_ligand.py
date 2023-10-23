@@ -145,17 +145,17 @@ class PDBProtein(object):
 
     def to_dict_atom(self):
         return {
-            'element': np.array(self.element, dtype=np.long),
+            'element': np.array(self.element, dtype=np.int_),
             'molecule_name': self.title,
             'pos': np.array(self.pos, dtype=np.float32),
-            'is_backbone': np.array(self.is_backbone, dtype=np.bool),
+            'is_backbone': np.array(self.is_backbone, dtype=bool),
             'atom_name': self.atom_name,
-            'atom_to_aa_type': np.array(self.atom_to_aa_type, dtype=np.long)
+            'atom_to_aa_type': np.array(self.atom_to_aa_type, dtype=np.int_)
         }
 
     def to_dict_residue(self):
         return {
-            'amino_acid': np.array(self.amino_acid, dtype=np.long),
+            'amino_acid': np.array(self.amino_acid, dtype=np.int_),
             'center_of_mass': np.array(self.center_of_mass, dtype=np.float32),
             'pos_CA': np.array(self.pos_CA, dtype=np.float32),
             'pos_C': np.array(self.pos_C, dtype=np.float32),
@@ -206,13 +206,13 @@ def parse_pdbbind_index_file(path):
 
 
 def parse_sdf_file(path):
-    mol = Chem.MolFromMolFile(path, sanitize=False)
+    mol = Chem.MolFromMolFile(path, sanitize=True)
     moltree = MolTree(mol)
     fdefName = os.path.join(RDConfig.RDDataDir,'BaseFeatures.fdef')
     factory = ChemicalFeatures.BuildFeatureFactory(fdefName)
-    rdmol = next(iter(Chem.SDMolSupplier(path, removeHs=False)))
+    rdmol = next(iter(Chem.SDMolSupplier(path, removeHs=True)))
     rd_num_atoms = rdmol.GetNumAtoms()
-    feat_mat = np.zeros([rd_num_atoms, len(ATOM_FAMILIES)], dtype=np.long)
+    feat_mat = np.zeros([rd_num_atoms, len(ATOM_FAMILIES)], dtype=np.int_)
     for feat in factory.GetFeaturesForMol(rdmol):
         feat_mat[feat.GetAtomIds(), ATOM_FAMILIES_ID[feat.GetFamily()]] = 1
 
@@ -240,7 +240,7 @@ def parse_sdf_file(path):
 
     center_of_mass = np.array(accum_pos / accum_mass, dtype=np.float32)
 
-    element = np.array(element, dtype=np.int)
+    element = np.array(element, dtype=np.int_)
     pos = np.array(pos, dtype=np.float32)
 
     BOND_TYPES = {t: i for i, t in enumerate(BondType.names.values())}
@@ -257,14 +257,15 @@ def parse_sdf_file(path):
         col += [end, start]
         edge_type += 2 * [bond_type_map[int(bond_line[6:9])]]
 
-    edge_index = np.array([row, col], dtype=np.long)
-    edge_type = np.array(edge_type, dtype=np.long)
+    edge_index = np.array([row, col], dtype=np.int_)
+    edge_type = np.array(edge_type, dtype=np.int_)
 
     perm = (edge_index[0] * num_atoms + edge_index[1]).argsort()
     edge_index = edge_index[:, perm]
     edge_type = edge_type[perm]
 
     neighbor_dict = {}
+
     #used in rotation angle prediction
     for i, atom in enumerate(mol.GetAtoms()):
         neighbor_dict[i] = [n.GetIdx() for n in atom.GetNeighbors()]

@@ -8,7 +8,7 @@ from tqdm.auto import tqdm
 import numpy as np
 import torch
 import random
-from chemutils import get_clique_mol, tree_decomp, get_mol, get_smiles, set_atommap, get_clique_mol_simple
+from .chemutils import get_clique_mol, tree_decomp, get_mol, get_smiles, set_atommap, get_clique_mol_simple
 from collections import defaultdict
 
 
@@ -25,7 +25,10 @@ class Vocab(object):
         #self.slots = [get_slots(smiles) for smiles in self.vocab]
 
     def get_index(self, smiles):
-        return self.vmap[smiles]
+        if smiles in self.vmap.keys():
+            return self.vmap[smiles]
+        else:
+            return 0
 
     def get_smiles(self, idx):
         return self.vocab[idx]
@@ -47,8 +50,7 @@ class MolTreeNode(object):
         self.neighbors = []
         self.rotatable = False
         if len(self.clique) == 2:
-            if mol.GetAtomWithIdx(self.clique[0]).GetDegree() >= 2 and mol.GetAtomWithIdx(
-                    self.clique[1]).GetDegree() >= 2:
+            if mol.GetAtomWithIdx(self.clique[0]).GetDegree() >= 2 and mol.GetAtomWithIdx(self.clique[1]).GetDegree() >= 2:
                 self.rotatable = True
         # should restrict to single bond, but double bond is ok
 
@@ -109,7 +111,7 @@ class MolTree(object):
         reference = defaultdict(int)
         for k, v in reference_vocab.items():
             reference[k] = v'''
-        
+
         # use vanilla tree decomposition for simplicity
         cliques, edges = tree_decomp(self.mol, reference_vocab=None)
         self.nodes = []
@@ -152,7 +154,7 @@ class MolTree(object):
 
 
 if __name__ == "__main__":
-    seed = 2022
+    seed = 2023
     torch.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
@@ -160,14 +162,37 @@ if __name__ == "__main__":
     vocab = {}
     cnt = 0
     rot = 0
-    index_path = '/data/FLAG/crossdocked_pocket10/index.pkl'
+    '''
+    index_path = './data/crossdocked_pocket10/index.pkl'
     with open(index_path, 'rb') as f:
         index = pickle.load(f)
     for i, (pocket_fn, ligand_fn, _, rmsd_str) in enumerate(tqdm(index)):
         if pocket_fn is None: continue
         try:
-            path = '/data/FLAG/crossdocked_pocket10/' + ligand_fn
+            path = './data/crossdocked_pocket10/' + ligand_fn
             mol = Chem.MolFromMolFile(path, sanitize=False)
+            moltree = MolTree(mol)
+            cnt += 1
+            if moltree.num_rotatable_bond > 0:
+                rot += 1
+        except:
+            continue
+
+        for c in moltree.nodes:
+            smile_cluster = c.smiles
+            if smile_cluster not in vocab:
+                vocab[smile_cluster] = 1
+            else:
+                vocab[smile_cluster] += 1
+    '''
+
+    index = torch.load('/n/holyscratch01/mzitnik_lab/zaixizhang/pdbbind_pocket10/index.pt')
+    for i, pdbid in enumerate(tqdm(index)):
+        if pdbid is None: continue
+        try:
+            path = '/n/holyscratch01/mzitnik_lab/zaixizhang/pdbbind_pocket10/'
+            ligand_path = os.path.join(path, os.path.join(item, item+'_ligand.sdf'))
+            mol = Chem.MolFromMolFile(ligand_path, sanitize=False)
             moltree = MolTree(mol)
             cnt += 1
             if moltree.num_rotatable_bond > 0:

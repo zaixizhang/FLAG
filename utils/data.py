@@ -52,7 +52,7 @@ def collate_mols(mol_dicts):
     for key in ['protein_pos', 'protein_atom_feature', 'ligand_context_pos', 'ligand_context_feature_full',
                 'ligand_frontier', 'num_atoms', 'next_wid', 'current_wid', 'current_atoms', 'cand_labels',
                 'ligand_pos_torsion', 'ligand_feature_torsion', 'true_sin', 'true_cos', 'true_three_hop',
-                'dihedral_mask', 'protein_contact', 'true_dm']:
+                'dihedral_mask', 'protein_contact', 'true_dm', 'alpha_carbon_indicator']:
         data_batch[key] = torch.cat([mol_dict[key] for mol_dict in mol_dicts], dim=0)
     # unsqueeze dim0
     for key in ['xn_pos', 'yn_pos', 'ligand_torsion_xy_index', 'y_pos']:
@@ -94,7 +94,7 @@ def collate_mols(mol_dicts):
             p_idx, q_idx = p_idx.squeeze(-1), q_idx.squeeze(-1)
             sr_ligand_idx.append(ligand_atom_index[p_idx] + ligand_offsets[i])
             sr_protein_idx.append(mol_dict['protein_alpha_carbon_index'][q_idx] + protein_offsets[i])
-    if len(ligand_idx) > 0:
+    if len(sr_ligand_idx) > 0:
         data_batch['sr_ligand_idx'], data_batch['sr_protein_idx'] = torch.cat(sr_ligand_idx).long(), torch.cat(sr_protein_idx).long()
 
     # structure refinement (ligand atom - ligand atom)
