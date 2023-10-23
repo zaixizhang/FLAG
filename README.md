@@ -35,6 +35,7 @@ python motif_sample.py
 ```
 
 ## FLAG demo with checkpoints
+https://drive.google.com/drive/folders/1NI-Tl7YzyMsfljEZXaTxbpuiO7lvUBt9?usp=drive_link
 
 ## Reference
 ```
