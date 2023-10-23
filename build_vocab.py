@@ -23,10 +23,10 @@ vocab = {}
 cnt = 0
 rot = 0
 
-index = torch.load('/n/holyscratch01/mzitnik_lab/zaixizhang/pdbbind_pocket10/index.pt')
+index = torch.load('./data/pdbbind_pocket10/index.pt')
 for i, pdbid in enumerate(tqdm(index)):
     try:
-        path = '/n/holyscratch01/mzitnik_lab/zaixizhang/pdbbind_pocket10/'
+        path = './data/pdbbind_pocket10/'
         ligand_path = os.path.join(path, os.path.join(pdbid, pdbid+'_ligand.sdf'))
         mol = Chem.MolFromMolFile(ligand_path, sanitize=False)
         moltree = MolTree(mol)
