@@ -578,7 +578,7 @@ if __name__ == '__main__':
 
     pool = mp.Pool(args.num_workers)
     vina_list = []
-    pro_path = '/n/holyscratch01/mzitnik_lab/zaixizhang/pdbbind_pocket10/' + os.path.join(data['pdbid'], data['pdbid']+'_pocket.pdb')
+    pro_path = './data/pdbbind_pocket10/' + os.path.join(data['pdbid'], data['pdbid']+'_pocket.pdb')
     for vina_score in tqdm(pool.imap_unordered(partial(calculate_vina, pro_path=pro_path, lig_path=log_dir), number_list), total=len(number_list)):
         if vina_score != None:
             vina_list.append(vina_score)
