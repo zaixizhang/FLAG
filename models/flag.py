@@ -76,9 +76,9 @@ class FLAG(Module):
         prob = pred_scores[idx_parent, preds]
         return preds, prob
 
-    def forward_attach(self, mol_list, next_motif_smiles):
+    def forward_attach(self, mol_list, next_motif_smiles, device):
         cand_mols, cand_batch, new_atoms, one_atom_attach, intersection, attach_fail = chemutils.assemble(mol_list, next_motif_smiles)
-        graph_data = Batch.from_data_list([chemutils.mol_to_graph_data_obj_simple(mol) for mol in cand_mols])
+        graph_data = Batch.from_data_list([chemutils.mol_to_graph_data_obj_simple(mol) for mol in cand_mols]).to(device)
         comb_pred = self.comb_head(graph_data.x, graph_data.edge_index, graph_data.edge_attr, graph_data.batch).reshape(-1)
         slice_idx = torch.cat([torch.tensor([0]), torch.cumsum(cand_batch.bincount(), dim=0)], dim=0)
         select = [(torch.argmax(comb_pred[slice_idx[i]:slice_idx[i + 1]]) + slice_idx[i]).item() for i in
@@ -177,12 +177,8 @@ class FLAG(Module):
         if len(batch['true_dm']) > 0:
             input = torch.cat([protein_atom_feature[batch['dm_protein_idx']], ligand_atom_feature[batch['dm_ligand_idx']]], dim=-1)
             pred_dist = self.dist_mlp(input)
-            
-            # mjseo: The dimension of pred_dist and batch['true_dm'] is not match.
-            # dm_loss = self.dist_loss(pred_dist, batch['true_dm'])/10
             dm_target = batch['true_dm'].unsqueeze(-1)
             dm_loss = self.dist_loss(pred_dist, dm_target)
-            
             loss_list[3] = dm_loss.item()
         else:
             dm_loss = 0
