@@ -34,6 +34,8 @@ python train.py
 python motif_sample.py
 ```
 
+## FLAG demo with checkpoints
+
 ## Reference
 ```
 @inproceedings{
