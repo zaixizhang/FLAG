@@ -1,19 +1,18 @@
 dataset:
   name: pl
-  path: ./data/crossdocked_pocket10
-  split: ./data/split_by_name.pt
+  path: /n/holyscratch01/mzitnik_lab/zaixizhang/pdbbind_pocket10
+  split: /n/holyscratch01/mzitnik_lab/zaixizhang/pdbbind_pocket10/split_by_name.pt
 
 model:
-  checkpoint: ./pretrained/model.pt
+  checkpoint: ./logs/train_model_2023_10_22__23_46_00/checkpoints/200000.pt
   hidden_channels: 256
-  random_alpha: True
+  random_alpha: False
 
 sample:
-  seed: 2022
+  seed: 2024
   num_samples: 100
-  beam_size: 300
-  logp_thres: -.inf
   num_retry: 5
   max_steps: 12
   batch_size: 10
   num_workers: 4
+  n_samples: 5
