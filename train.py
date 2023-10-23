@@ -20,7 +20,7 @@ if __name__ == '__main__':
     parser.add_argument('--config', type=str, default='./configs/train_model.yml')
     parser.add_argument('--device', type=str, default='cuda:0')
     parser.add_argument('--logdir', type=str, default='./logs')
-    parser.add_argument('--vocab_path', type=str, default='./utils/vocab.txt')
+    parser.add_argument('--vocab_path', type=str, default='./vocab.txt')
     args = parser.parse_args()
 
     # Load vocab
