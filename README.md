@@ -35,6 +35,7 @@ python motif_sample.py
 
 ## FLAG demo with checkpoints
 Demo: https://huggingface.co/spaces/Zaixi/ICLR_FLAG
+
 Checkpoints: https://drive.google.com/drive/folders/1NI-Tl7YzyMsfljEZXaTxbpuiO7lvUBt9?usp=drive_link
 
 <div align=center><img src="https://github.com/zaixizhang/FLAG/blob/main/huggingface.png" width="700"/></div>
