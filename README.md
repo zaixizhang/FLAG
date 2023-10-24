@@ -7,6 +7,12 @@ the molecular geometry is further adjusted according to the predicted rotation a
 Our model not only achieves competitive performances on conventional metrics such as binding affinity, QED, and SA, but also outperforms baselines by a
 large margin in generating molecules with realistic substructures.
 
+## 📢 News
+
+- Please check out our latest work on structure-based drug design: *Learning Subpocket Prototypes for Generalizable Structure-based Drug Design* (ICML 2023)
+  - Code: https://github.com/zaixizhang/DrugGPS_ICML23
+  - Paper: https://arxiv.org/abs/2305.13997
+
 ## Install conda environment via conda yaml file
 ```bash
 conda env create -f flag_env.yaml
