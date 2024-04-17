@@ -46,6 +46,11 @@ Checkpoints: https://drive.google.com/drive/folders/1NI-Tl7YzyMsfljEZXaTxbpuiO7l
 
 <div align=center><img src="https://github.com/zaixizhang/FLAG/blob/main/huggingface.png" width="700"/></div>
 
+## Generated Molecules for CrossDocked dataset
+The generated molecular structures for 100 protein targets are stored in [flag_gen.pt](https://drive.google.com/file/d/1o8gVZvdIQXERJCCtFtD-YvPsFr3JtK17/view?usp=sharing)
+
+The index file is [test_index.pkl](https://github.com/zaixizhang/DrugGPS_ICML23/blob/8853927dbccca74b5de45048635578ca47a64676/test_index.pkl)
+
 ## Reference
 ```
 @inproceedings{
